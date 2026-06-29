@@ -1,18 +1,22 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import { saveOrder, updateOrder, listenOrders, listenMenuItems, getNextBillNumber, getNextOrderNumber } from "../utils/database";
 import { printContent, generateKOTHtml, generateBillHtml, generateKOTAndBillHtml } from "../utils/print";
 
-const navItems = [
+const allNavItems = [
   { path: "/", label: "Home", icon: "🏠" },
   { path: "/billing", label: "Billing", icon: "🧾" },
   { path: "/menu", label: "Menu", icon: "📋" },
   { path: "/reports", label: "Reports", icon: "📊" },
+  { path: "/admin", label: "Admin", icon: "⚙️" },
 ];
 
 export default function BillingPage() {
   const navigate = useNavigate();
+  const { isTrailer } = useAuth();
   const [orders, setOrders] = useState([]);
+  const navItems = allNavItems.filter((item) => isTrailer() ? (item.path === "/" || item.path === "/billing" || item.path === "/menu") : true);
   const [menuItems, setMenuItems] = useState([]);
   const [tableNumber, setTableNumber] = useState("1");
   const [orderType, setOrderType] = useState("dinein");

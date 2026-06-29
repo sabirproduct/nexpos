@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { listenMenuItems, saveMenuItem } from "../utils/database";
+import { useAuth } from "../contexts/AuthContext";
+import { listenMenuItems, saveMenuItem, updateMenuItem } from "../utils/database";
 
-const navItems = [
+const allNavItems = [
   { path: "/", label: "Home", icon: "🏠" },
   { path: "/billing", label: "Billing", icon: "🧾" },
   { path: "/menu", label: "Menu", icon: "📋" },
   { path: "/reports", label: "Reports", icon: "📊" },
+  { path: "/admin", label: "Admin", icon: "⚙️" },
 ];
 
 /**
@@ -36,7 +38,9 @@ function resizeImage(file, maxSize) {
 
 export default function MenuPage() {
   const navigate = useNavigate();
+  const { isAdmin, isTrailer } = useAuth();
   const fileInputRef = useRef(null);
+  const navItems = allNavItems.filter((item) => isTrailer() ? (item.path === "/" || item.path === "/billing" || item.path === "/menu") : true);
   const [menuItems, setMenuItems] = useState([]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -106,6 +110,7 @@ export default function MenuPage() {
       </div>
 
       <div className="page">
+        {isAdmin() && (
         <div className="card animate-in">
           <h2 className="mb-3">Add Menu Item</h2>
           <form onSubmit={handleAddItem}>
@@ -149,6 +154,13 @@ export default function MenuPage() {
             </button>
           </form>
         </div>
+        )}
+
+        {!isAdmin() && (
+          <div className="card text-center text-muted" style={{ padding: "16px" }}>
+            Viewing menu items (admin only can add/edit)
+          </div>
+        )}
 
         <h2 className="mb-3 mt-4">Menu Items ({menuItems.length})</h2>
 

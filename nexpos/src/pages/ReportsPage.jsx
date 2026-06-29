@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import { generateDailyReport, generateRangeReport } from "../utils/database";
 import { printContent, generateDailyReportHtml } from "../utils/print";
 import { format, startOfWeek, startOfMonth, subDays, addDays } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-const navItems = [
+const allNavItems = [
   { path: "/", label: "Home", icon: "🏠" },
   { path: "/billing", label: "Billing", icon: "🧾" },
   { path: "/menu", label: "Menu", icon: "📋" },
   { path: "/reports", label: "Reports", icon: "📊" },
+  { path: "/admin", label: "Admin", icon: "⚙️" },
 ];
 
 function getWeekRange(date) {
@@ -25,6 +27,8 @@ function getMonthRange(date) {
 
 export default function ReportsPage() {
   const navigate = useNavigate();
+  const { isTrailer } = useAuth();
+  const navItems = allNavItems.filter((item) => isTrailer() ? (item.path === "/" || item.path === "/billing" || item.path === "/menu") : true);
   const [tab, setTab] = useState("daily");
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);

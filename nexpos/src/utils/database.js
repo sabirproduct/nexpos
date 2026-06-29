@@ -195,6 +195,14 @@ export async function getAllUsers() {
 }
 
 /**
+ * Delete a user document from Firestore
+ */
+export function deleteUserDoc(uid) {
+  const userRef = doc(db, "users", uid);
+  return deleteDoc(userRef);
+}
+
+/**
  * Listen to all users in realtime
  */
 export function listenUsers(callback) {

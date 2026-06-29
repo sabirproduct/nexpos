@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getRestaurantSettings, updateRestaurantSettings, listenUsers, setUserRole } from "../utils/database";
+import { getRestaurantSettings, updateRestaurantSettings, listenUsers, setUserRole as setUserRoleDB, deleteUserDoc } from "../utils/database";
 
-const navItems = [
+const allNavItems = [
   { path: "/", label: "Home", icon: "🏠" },
   { path: "/billing", label: "Billing", icon: "🧾" },
   { path: "/menu", label: "Menu", icon: "📋" },
@@ -13,13 +13,19 @@ const navItems = [
 
 export default function AdminPage() {
   const navigate = useNavigate();
-  const { user, refreshRole } = useAuth();
+  const { user, refreshRole, createUser, isTrailer } = useAuth();
+  const navItems = allNavItems.filter((item) => isTrailer() ? (item.path === "/" || item.path === "/billing" || item.path === "/menu") : true);
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantAddress, setRestaurantAddress] = useState("");
   const [restaurantPhone, setRestaurantPhone] = useState("");
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // New user form
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState("trailer");
+  const [creatingUser, setCreatingUser] = useState(false);
 
   useEffect(() => {
     getRestaurantSettings().then((settings) => {
@@ -42,18 +48,39 @@ export default function AdminPage() {
     setSaving(false);
   };
 
-  const handleApproveUser = async (uid, role) => {
-    try { await setUserRole(uid, { role: role || "trailer", approved: true }); if (uid === user.uid) refreshRole(); }
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!newEmail.trim() || !newPassword.trim()) { alert("Please enter email and password"); return; }
+    if (newPassword.length < 6) { alert("Password must be at least 6 characters"); return; }
+    setCreatingUser(true);
+    try {
+      await createUser(newEmail.trim(), newPassword, newRole);
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("trailer");
+      alert("User created successfully!");
+    } catch (err) { alert("Error creating user: " + err.message); }
+    setCreatingUser(false);
+  };
+
+  const handleApproveUser = async (uid) => {
+    try { await setUserRoleDB(uid, { approved: true }); if (uid === user.uid) refreshRole(); }
     catch (err) { alert("Error: " + err.message); }
   };
 
   const handleRejectUser = async (uid) => {
-    try { await setUserRole(uid, { role: "trailer", approved: false }); }
+    try { await setUserRoleDB(uid, { approved: false }); }
+    catch (err) { alert("Error: " + err.message); }
+  };
+
+  const handleDeleteUser = async (uid) => {
+    if (!confirm("Are you sure you want to remove this user?")) return;
+    try { await deleteUserDoc(uid); }
     catch (err) { alert("Error: " + err.message); }
   };
 
   const handleChangeRole = async (uid, role) => {
-    try { await setUserRole(uid, { role }); if (uid === user.uid) refreshRole(); }
+    try { await setUserRoleDB(uid, { role }); if (uid === user.uid) refreshRole(); }
     catch (err) { alert("Error: " + err.message); }
   };
 
@@ -86,11 +113,37 @@ export default function AdminPage() {
           </form>
         </div>
 
+        {/* Add New User */}
+        <div className="card mt-4 animate-in">
+          <h2 className="mb-3">Add New User</h2>
+          <form onSubmit={handleCreateUser}>
+            <div className="input-group">
+              <label>Email</label>
+              <input type="email" className="input" placeholder="user@example.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+            </div>
+            <div className="input-group">
+              <label>Password (min 6 chars)</label>
+              <input type="password" className="input" placeholder="Enter password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            </div>
+            <div className="input-group">
+              <label>Role</label>
+              <select className="select" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+                <option value="admin">Admin</option>
+                <option value="trailer">Trailer</option>
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary btn-block" disabled={creatingUser}>
+              {creatingUser ? "Creating..." : "Create User"}
+            </button>
+          </form>
+        </div>
+
+        {/* User Management */}
         <div className="card mt-4 animate-in">
           <h2 className="mb-3">User Management</h2>
-          <p className="text-sm text-muted mb-3">Approve or reject users who sign in. Set their role (Admin or Trailer).</p>
+          <p className="text-sm text-muted mb-3">Manage existing users. Approve, change roles, or remove users.</p>
           {users.length === 0 ? (
-            <div className="text-center text-muted" style={{ padding: "16px" }}>No users yet. Users will appear here after they sign in.</div>
+            <div className="text-center text-muted" style={{ padding: "16px" }}>No users yet</div>
           ) : (
             users.map((u) => (
               <div key={u.uid} className="card" style={{ padding: "12px", marginBottom: "8px", background: "#f8fafc" }}>
@@ -102,11 +155,12 @@ export default function AdminPage() {
                       {u.approved === true ? " | ✅ Approved" : u.approved === false ? " | ❌ Rejected" : " | ⏳ Pending"}
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    {u.approved !== true && <button className="btn btn-sm btn-secondary" onClick={() => handleApproveUser(u.uid, "trailer")}>Approve</button>}
+                  <div className="flex gap-1 flex-wrap" style={{ justifyContent: "flex-end" }}>
+                    {u.approved !== true && <button className="btn btn-sm btn-secondary" onClick={() => handleApproveUser(u.uid)}>Approve</button>}
+                    {u.approved !== false && u.uid !== user?.uid && <button className="btn btn-sm btn-danger" onClick={() => handleRejectUser(u.uid)}>Reject</button>}
                     {u.approved === true && u.role === "trailer" && <button className="btn btn-sm btn-primary" onClick={() => handleChangeRole(u.uid, "admin")}>Make Admin</button>}
                     {u.approved === true && u.role === "admin" && <button className="btn btn-sm btn-outline" onClick={() => handleChangeRole(u.uid, "trailer")}>Make Trailer</button>}
-                    {u.approved !== false && u.uid !== user?.uid && <button className="btn btn-sm btn-danger" onClick={() => handleRejectUser(u.uid)}>Reject</button>}
+                    {u.uid !== user?.uid && <button className="btn btn-sm btn-danger" onClick={() => handleDeleteUser(u.uid)} style={{ background: "#dc2626", color: "white" }}>Remove</button>}
                   </div>
                 </div>
               </div>
