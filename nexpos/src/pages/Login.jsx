@@ -1,7 +1,28 @@
+import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
   const { signInWithGoogle, error, loading } = useAuth();
+  const [redirecting, setRedirecting] = useState(false);
+
+  const handleLogin = async () => {
+    setRedirecting(true);
+    await signInWithGoogle();
+    // If redirect doesn't happen (e.g. error), allow retry
+    setRedirecting(false);
+  };
+
+  if (redirecting) {
+    return (
+      <div className="login-page">
+        <div className="login-card animate-in" style={{ textAlign: "center" }}>
+          <div className="spinner" />
+          <p style={{ marginTop: "16px", color: "var(--gray-600)" }}>Redirecting to Google...</p>
+          <p style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "8px" }}>Please wait</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page">
@@ -13,7 +34,7 @@ export default function Login() {
         {error && <div className="alert alert-error">{error}</div>}
 
         <button
-          onClick={signInWithGoogle}
+          onClick={handleLogin}
           disabled={loading}
           className="btn btn-primary btn-block btn-lg"
           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}
@@ -28,7 +49,7 @@ export default function Login() {
         </button>
 
         <p style={{ marginTop: "16px", fontSize: "12px", color: "var(--gray-400)" }}>
-          Restaurant POS System
+          You'll be redirected to Google to sign in
         </p>
       </div>
     </div>

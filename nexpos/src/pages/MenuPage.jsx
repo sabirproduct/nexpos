@@ -1,27 +1,72 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { listenMenuItems, saveMenuItem } from "../utils/database";
 
 const navItems = [
   { path: "/", label: "Home", icon: "🏠" },
-  { path: "/kot", label: "KOT", icon: "🧾" },
-  { path: "/billing", label: "Billing", icon: "💳" },
+  { path: "/billing", label: "Billing", icon: "🧾" },
   { path: "/menu", label: "Menu", icon: "📋" },
   { path: "/reports", label: "Reports", icon: "📊" },
 ];
 
+/**
+ * Resize an image to 250x250 pixels using canvas
+ */
+function resizeImage(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    maxSize = maxSize || 250;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var img = new Image();
+      img.onload = function () {
+        var canvas = document.createElement("canvas");
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function MenuPage() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
   const [menuItems, setMenuItems] = useState([]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [category, setCategory] = useState("Main Course");
   const [saving, setSaving] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageUrl, setImageUrl] = useState("");
 
   useEffect(() => {
     const unsub = listenMenuItems((data) => setMenuItems(data));
     return unsub;
   }, []);
+
+  const handleFileSelect = async (e) => {
+    var file = e.target.files[0];
+    if (!file) return;
+    try {
+      var resized = await resizeImage(file, 250);
+      setImagePreview(resized);
+      setImageUrl(resized);
+    } catch (err) {
+      alert("Error processing image: " + err.message);
+    }
+  };
+
+  const handleImageUrl = (e) => {
+    var url = e.target.value.trim();
+    setImageUrl(url);
+    setImagePreview(url || null);
+  };
 
   const handleAddItem = async (e) => {
     e.preventDefault();
@@ -37,9 +82,12 @@ export default function MenuPage() {
         price: parseFloat(price),
         sellingPrice: parseFloat(price),
         category,
+        image: imageUrl || null,
       });
       setName("");
       setPrice("");
+      setImagePreview(null);
+      setImageUrl("");
       setSaving(false);
     } catch (err) {
       alert("Error saving item: " + err.message);
@@ -79,6 +127,23 @@ export default function MenuPage() {
                 <option value="Other">Other</option>
               </select>
             </div>
+
+            <div className="input-group">
+              <label>Image (optional)</label>
+              <input type="text" className="input" placeholder="Paste image URL from Google..." value={imageUrl} onChange={handleImageUrl} style={{ fontSize: "12px", marginBottom: "6px" }} />
+              <div className="flex items-center gap-2">
+                <button type="button" className="btn btn-sm btn-outline" onClick={() => fileInputRef.current.click()}>📁 Upload</button>
+                <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileSelect} />
+                {imagePreview && <button type="button" className="btn btn-sm btn-danger" onClick={() => { setImagePreview(null); setImageUrl(""); }}>Clear</button>}
+              </div>
+              {imagePreview && (
+                <div className="mt-2">
+                  <img src={imagePreview} alt="Preview" style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "2px solid var(--gray-200)" }} />
+                  <span className="text-xs text-muted" style={{ marginLeft: "8px" }}>250x250 px</span>
+                </div>
+              )}
+            </div>
+
             <button type="submit" className="btn btn-primary btn-block" disabled={saving}>
               {saving ? "Adding..." : "Add Item"}
             </button>
@@ -98,6 +163,7 @@ export default function MenuPage() {
                   .filter((item) => (item.category || "Other") === cat)
                   .map((item) => (
                     <div key={item.id} className="menu-item selected">
+                      {item.image && <img src={item.image} alt={item.name} style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "8px 8px 0 0", marginBottom: "4px" }} />}
                       <div className="name">{item.name}</div>
                       <div className="price">₹{(item.price || item.sellingPrice || 0).toFixed(2)}</div>
                     </div>

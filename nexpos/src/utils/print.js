@@ -65,7 +65,9 @@ function renderItems(items) {
 export function generateKOTHtml(order) {
   var now = new Date();
   var timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-  var orderId = escapeHtml(order.orderId || (order.id && order.id.slice(-6).toUpperCase()) || "N/A");
+  var orderNumber = escapeHtml(order.orderNumber || order.orderId || (order.id && order.id.slice(-6).toUpperCase()) || "N/A");
+  var orderType = order.orderType === "parcel" ? "PARCEL" : "DINE-IN";
+  var tableInfo = order.orderType === "parcel" ? "Parcel" : "Table: " + escapeHtml(order.tableNumber || "N/A");
   var itemsHtml = "";
   if (order.items) {
     for (var i = 0; i < order.items.length; i++) {
@@ -78,8 +80,8 @@ export function generateKOTHtml(order) {
   }
   return '<div class="header">'
     + '<h2>KITCHEN ORDER</h2>'
-    + '<p>Table: ' + escapeHtml(order.tableNumber || "N/A") + '</p>'
-    + '<p>Order #: ' + orderId + '</p>'
+    + '<p>' + orderType + ' | ' + tableInfo + '</p>'
+    + '<p style="font-size:14px; font-weight:bold;">Order #: ' + orderNumber + '</p>'
     + '<p>Time: ' + timeStr + '</p>'
     + '</div>'
     + '<div class="divider"></div>'
@@ -95,6 +97,7 @@ export function generateBillHtml(order, restaurantName) {
   var now = new Date();
   var dateStr = now.toLocaleDateString("en-IN");
   var timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  var orderNumber = escapeHtml(order.orderNumber || order.orderId || (order.id && order.id.slice(-6).toUpperCase()) || "N/A");
   var billNo = escapeHtml(order.billNumber || order.orderId || (order.id && order.id.slice(-6).toUpperCase()) || "N/A");
   var subtotal = 0;
   if (order.items) {
@@ -103,22 +106,102 @@ export function generateBillHtml(order, restaurantName) {
       subtotal += (item.price || item.sellingPrice || 0) * (item.quantity || 1);
     }
   }
-  var tax = Math.round(subtotal * 0.05 * 100) / 100;
-  var total = subtotal + tax;
+  var total = subtotal;
+  var orderType = order.orderType === "parcel" ? "PARCEL" : "DINE-IN";
+  var tableInfo = order.orderType === "parcel" ? "Parcel Order" : "Table: " + escapeHtml(order.tableNumber || "N/A");
   return '<div class="header">'
     + '<h2>' + escapeHtml(restaurantName) + '</h2>'
     + '<p>' + dateStr + ' ' + timeStr + '</p>'
-    + '<p>Table: ' + escapeHtml(order.tableNumber || "N/A") + '</p>'
+    + '<p>' + orderType + ' | ' + tableInfo + '</p>'
+    + '<p style="font-size:14px; font-weight:bold;">Order #: ' + orderNumber + '</p>'
     + '<p>Bill #: ' + billNo + '</p>'
     + '</div>'
     + '<div class="divider"></div>'
     + renderItems(order.items)
     + '<div class="totals">'
-    + '<div class="total-line"><span>Subtotal</span><span>₹' + subtotal.toFixed(2) + '</span></div>'
-    + '<div class="total-line"><span>Tax (5%)</span><span>₹' + tax.toFixed(2) + '</span></div>'
     + '<div class="total-line final"><span>TOTAL</span><span>₹' + total.toFixed(2) + '</span></div>'
     + '</div>'
-    + '<div class="footer"><p>Thank You! Visit Again!</p><p style="font-size:8px;">GSTIN: XX-XXXXX-XXXXX</p></div>';
+    + '<div class="footer"><p>Thank You! Visit Again!</p></div>';
+}
+
+/**
+ * Generate KOT and Bill on the same page with a cut marker
+ */
+export function generateKOTAndBillHtml(order, restaurantName) {
+  restaurantName = restaurantName || "NexPOS Restaurant";
+  var now = new Date();
+  var dateStr = now.toLocaleDateString("en-IN");
+  var timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  var orderNumber = escapeHtml(order.orderNumber || order.orderId || (order.id && order.id.slice(-6).toUpperCase()) || "N/A");
+  var billNo = escapeHtml(order.billNumber || order.orderId || (order.id && order.id.slice(-6).toUpperCase()) || "N/A");
+  var orderType = order.orderType === "parcel" ? "PARCEL" : "DINE-IN";
+  var tableInfo = order.orderType === "parcel" ? "Parcel" : "Table: " + escapeHtml(order.tableNumber || "N/A");
+
+  // KOT items (no prices)
+  var kotItemsHtml = "";
+  if (order.items) {
+    for (var i = 0; i < order.items.length; i++) {
+      var item = order.items[i];
+      kotItemsHtml += '<div class="item">'
+        + '<span class="name">' + escapeHtml(item.name) + '</span>'
+        + '<span class="qty">x' + (item.quantity || 1) + '</span>'
+        + '</div>';
+    }
+  }
+
+  // Bill items (with prices)
+  var subtotal = 0;
+  var billItemsHtml = "";
+  if (order.items) {
+    for (var i = 0; i < order.items.length; i++) {
+      var item = order.items[i];
+      var qty = item.quantity || 1;
+      var price = item.price || item.sellingPrice || 0;
+      subtotal += price * qty;
+      billItemsHtml += '<div class="item">'
+        + '<span class="name">' + escapeHtml(item.name) + '</span>'
+        + '<span class="qty">x' + qty + '</span>'
+        + '<span class="price">₹' + (price * qty).toFixed(2) + '</span>'
+        + '</div>';
+    }
+  }
+
+  // === KOT Section ===
+  var kotSection = '<div class="header">'
+    + '<h2>KITCHEN ORDER</h2>'
+    + '<p>' + orderType + ' | ' + tableInfo + '</p>'
+    + '<p style="font-size:14px; font-weight:bold;">Order #: ' + orderNumber + '</p>'
+    + '<p>Time: ' + timeStr + '</p>'
+    + '</div>'
+    + '<div class="divider"></div>'
+    + kotItemsHtml
+    + '<div class="divider"></div>'
+    + '<p class="text-center bold">*** SPECIAL INSTRUCTIONS ***</p>'
+    + '<p class="text-center" style="font-size:10px;">' + escapeHtml(order.notes || "N/A") + '</p>'
+    + '<div class="footer"><p>Kitchen Copy</p></div>';
+
+  // === Cut Marker ===
+  var cutMarker = '<div style="text-align: center; margin: 12px 0; font-size: 14px; letter-spacing: 4px;">'
+    + '- - - - - - - - - - - - - - - - - - - - -'
+    + '</div>'
+    + '<div style="text-align: center; font-size: 10px; color: #666; margin-bottom: 8px;">✂ CUT HERE ✂</div>';
+
+  // === Bill Section ===
+  var billSection = '<div class="header">'
+    + '<h2>' + escapeHtml(restaurantName) + '</h2>'
+    + '<p>' + dateStr + ' ' + timeStr + '</p>'
+    + '<p>' + orderType + ' | ' + tableInfo + '</p>'
+    + '<p style="font-size:14px; font-weight:bold;">Order #: ' + orderNumber + '</p>'
+    + '<p>Bill #: ' + billNo + '</p>'
+    + '</div>'
+    + '<div class="divider"></div>'
+    + billItemsHtml
+    + '<div class="totals">'
+    + '<div class="total-line final"><span>TOTAL</span><span>₹' + subtotal.toFixed(2) + '</span></div>'
+    + '</div>'
+    + '<div class="footer"><p>Thank You! Visit Again!</p></div>';
+
+  return kotSection + cutMarker + billSection;
 }
 
 export function generateDailyReportHtml(report) {
