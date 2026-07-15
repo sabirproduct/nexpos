@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { saveOrder, updateOrder, listenOrders, listenMenuItems, getNextBillNumber, getNextOrderNumber } from "../utils/database";
@@ -24,6 +24,7 @@ export default function BillingPage() {
   const [cart, setCart] = useState([]);
   const [showForm, setShowForm] = useState(true);
   const [saving, setSaving] = useState(false);
+  const printWindowRef = useRef(null);
 
   useEffect(() => {
     const unsubOrders = listenOrders((data) => setOrders(data));
@@ -32,6 +33,17 @@ export default function BillingPage() {
   }, []);
 
   const activeOrders = orders.filter((o) => o.status === "pending" || o.status === "preparing");
+
+  const openPrintWindow = () => {
+    try {
+      const popup = window.open("", "_blank", "width=600,height=800,scrollbars=yes");
+      printWindowRef.current = popup;
+      return popup;
+    } catch (err) {
+      printWindowRef.current = null;
+      return null;
+    }
+  };
 
   const addToCart = (item) => {
     setCart((prev) => {
@@ -50,7 +62,10 @@ export default function BillingPage() {
   const handleSubmitOrder = async () => {
     if (orderType === "dinein" && !tableNumber.trim()) { alert("Please enter a table number"); return; }
     if (cart.length === 0) { alert("Please add items to the order"); return; }
+
+    const printWindow = openPrintWindow();
     setSaving(true);
+
     try {
       const { billNumber } = await getNextBillNumber();
       const { orderNumber } = await getNextOrderNumber();
@@ -66,12 +81,15 @@ export default function BillingPage() {
         billedAt: Date.now(),
       };
       const saved = await saveOrder(orderData);
-      printContent(generateKOTAndBillHtml(saved), "KOT & Bill");
+      printContent(generateKOTAndBillHtml(saved), "KOT & Bill", printWindow);
       setCart([]);
       setNotes("");
       setTableNumber("1");
       setSaving(false);
     } catch (err) {
+      if (printWindow && !printWindow.closed) {
+        try { printWindow.close(); } catch (closeErr) { }
+      }
       alert("Error: " + err.message);
       setSaving(false);
     }
